@@ -1,0 +1,117 @@
+#exploring and preparing the data
+```{r}
+wbcd <- read.csv("wisc_bc_data.csv", stringsAsFactors = FALSE)
+str(wbcd)
+```
+Let's drop the id feature altogether. As it is located in the first column, we can exclude it by making a copy of the wbcd data frame without column 1:
+```{r}
+wbcd <- wbcd[-1]
+```
+The next variable, diagnosis, is of particular interest as it is the outcome we
+hope to predict. This feature indicates whether the example is from a benign
+or malignant mass. The table() output indicates that 357 masses are benign
+while 212 are malignant:
+```{r}
+table(wbcd$diagnosis)
+```
+Many R machine learning classifiers require that the target feature is coded as a
+factor, so we will need to recode the diagnosis variable. We will also take this
+opportunity to give the "B" and "M" values more informative labels using the
+labels parameter:
+```{r}
+wbcd$diagnosis<- factor(wbcd$diagnosis, levels = c("B", "M"),
+labels = c("Benign", "Malignant"))
+```
+Now, when we look at the prop.table() output, we notice that the values have
+been labeled Benign and Malignant with 62.7 percent and 37.3 percent of the
+masses, respectively:
+```{r}
+round(prop.table(table(wbcd$diagnosis)) * 100, digits = 1)
+```
+The remaining 30 features are all numeric, and as expected, they consist of three
+different measurements of ten characteristics. For illustrative purposes, we will
+only take a closer look at three of these features:
+```{r}
+summary(wbcd[c("radius_mean", "area_mean", "smoothness_mean")])
+```
+Transformation – normalizing numeric data
+```{r}
+normalize <- function(x) {
+return ((x - min(x)) / (max(x) - min(x)))
+}
+```
+We can now apply the normalize() function to the numeric features in our data
+frame. Rather than normalizing each of the 30 numeric variables individually, we
+will use one of R's functions to automate the process.
+```{r}
+wbcd_n <- as.data.frame(lapply(wbcd[2:31], normalize))
+```
+To confirm that the transformation was applied correctly, let's look at one variable's
+summary statistics:
+```{r}
+summary(wbcd_n$area_mean)
+```
+Data preparation – creating training and test datasets
+```{r}
+set.seed(45)
+sample_items  <- sample.int(n=nrow(wbcd_n),
+                            size = floor(.8*nrow(wbcd_n)),
+                            replace = FALSE)
+wbcd_train <- wbcd_n[sample_items, ]
+wbcd_test <- wbcd_n[-sample_items, ]
+```
+For training the k-NN model, we will need to store
+these class labels in factor vectors, split between the training and test datasets:
+```{r}
+wbcd_train_labels <- wbcd[sample_items, 1]
+wbcd_test_labels <- wbcd[-sample_items, 1]
+```
+#training a model on the data
+```{r}
+library(class)
+```
+Training and classification using the knn() function
+```{r}
+wbcd_test_pred <- knn(train = wbcd_train, test = wbcd_test,
+cl = wbcd_train_labels, k = 21)
+```
+#evaluating model performance
+```{r}
+library(gmodels)
+```
+command, we can
+create a cross tabulation indicating the agreement between the two vectors.
+Specifying prop.chisq = FALSE will remove the unnecessary chi-square
+values from the output:
+```{r}
+CrossTable(x = wbcd_test_labels, y = wbcd_test_pred,
+prop.chisq=FALSE)
+```
+#improving model performance
+Transformation – z-score standardization
+To standardize a vector, we can use the R's built-in scale()
+```{r}
+wbcd_z <- as.data.frame(scale(wbcd[-1]))
+```
+To confirm that the transformation was applied correctly, we can look at the
+summary statistics:
+```{r}
+summary(wbcd_z$area_mean)
+```
+training and test data 
+```{r}
+wbcd_train_z <- wbcd_z[sample_items, ]
+wbcd_test_z <- wbcd_z[-sample_items, ]
+wbcd_train_labels_z <- wbcd[sample_items, 1]
+wbcd_test_labels_z <- wbcd[-sample_items, 1]
+```
+Model after Z standardization
+```{r}
+wbcd_test_pred_z <- knn(train = wbcd_train_z, test = wbcd_test_z,
+cl = wbcd_train_labels_z, k = 21)
+CrossTable(x = wbcd_test_labels_z, y = wbcd_test_pred_z,
+prop.chisq = FALSE)
+```
+Conc:
+
+change the k value and find the accurracy of model.
