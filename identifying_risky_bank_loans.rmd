@@ -1,0 +1,127 @@
+---
+title: "identifying risky bank loans using C5.0 decision trees"
+author: "Mastan Rao Parimi"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#exploring and preparing the data
+data loading
+```{r}
+credit <- read.csv("credit.csv")
+credit$default <- as.factor(credit$default)
+```
+summary
+```{r}
+str(credit)
+```
+table() output for a couple of loan features that seem likely to predict a default.
+```{r}
+table(credit$checking_balance)
+```
+```{r}
+table(credit$savings_balance)
+```
+```{r}
+summary(credit$months_loan_duration)
+```
+```{r}
+summary(credit$amount)
+```
+The default vector indicates whether the loan applicant was unable to meet the
+agreed payment terms and went into default. A total of 30 percent of the loans in
+this dataset went into default:
+```{r}
+table(credit$default)
+```
+#Data preparation – creating random training and test datasets
+```{r}
+set.seed(123)
+train_sample <- sample(1000, 900)
+```
+By using this vector to select rows from the credit data, we can split it into 
+the 90 percent training and 10 percent test datasets we desired
+```{r}
+credit_train <- credit[train_sample, ]
+credit_test <- credit[-train_sample, ]
+```
+should have about 30 percent of defaulted loans in each of the datasets:
+```{r}
+prop.table(table(credit_train$default))
+prop.table(table(credit_test$default))
+```
+#training a model on the data
+```{r}
+library(C50)
+```
+Training the Model using c.50 function
+```{r}
+credit_model <- C5.0(credit_train[-17], credit_train$default)
+```
+call model
+```{r}
+credit_model
+```
+To see the tree's decisions, we can call the summary() function on the model:
+```{r}
+summary(credit_model)
+```
+#evaluating model performance
+predicting using test data
+```{r}
+credit_pred <- predict(credit_model, credit_test)
+```
+```{r}
+library(gmodels)
+CrossTable(credit_test$default, credit_pred,
+prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+dnn = c('actual default', 'predicted default'))
+```
+#improving model performance
+```{r}
+credit_boost10 <- C5.0(credit_train[-17], credit_train$default,
+trials = 10)
+```
+resulting model
+```{r}
+credit_boost10
+```
+summary of the model
+```{r}
+summary(credit_boost10)
+```
+predicting using test data
+```{r}
+credit_boost_pred10 <- predict(credit_boost10, credit_test)
+CrossTable(credit_test$default, credit_boost_pred10,
+prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+dnn = c('actual default', 'predicted default'))
+```
+cost matrix
+```{r}
+matrix_dimension <- list(c("1", "2"), c("1", "2"))
+names(matrix_dimension) <- c("predicted", "actual")
+matrix_dimension
+```
+Suppose we believe that a loan default costs the bank four times as much as a 
+missed opportunity. Our penalty values could then be defined as:
+```{r}
+error_cost <- matrix(c(0, 1, 4, 0), nrow = 2,
+dimnames = matrix_dimension)
+error_cost
+```
+As defined by this matrix, there is no cost assigned when the algorithm
+classifies a no or yes correctly, but a false negative has a cost of 4 versus a 
+false positive's cost of 1. To see how this impacts classification, let's apply 
+it to our decision tree using the costs parameter of the C5.0() function. We'll 
+otherwise use the same steps as we did earlier:
+```{r} 
+credit_cost <- C5.0(credit_train[-17], credit_train$default,
+costs = error_cost)
+credit_cost_pred <- predict(credit_cost, credit_test)
+CrossTable(credit_test$default, credit_cost_pred,
+prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+dnn = c('actual default', 'predicted default'))
+```
